@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alvaro</title>
+<meta name="theme-color" content="#B91C1C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Alvaro">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; box-sizing: border-box;
+    background: #B91C1C; color: #fff; font: 600 15px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; text-align: center; }
+  img { width: 168px; height: 168px; margin: -28px 0; }
+  h1 { margin: 0; font: 800 44px/1 'Arial Narrow', 'Roboto Condensed', sans-serif; letter-spacing: .04em; }
+  #msj { max-width: 320px; opacity: .92; }
+  .btn { display: none; margin-top: 6px; padding: 12px 24px; border: 2px solid #fff; border-radius: 6px; background: transparent; color: #fff; text-decoration: none;
+    font: 700 16px/1 system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .btn.prim { background: #fff; color: #B91C1C; }
+  body.manual #abrir, body.puede-instalar #instalar { display: inline-block; }
+  #ayuda { display: none; max-width: 320px; font-size: 14px; opacity: .85; }
+  body.ayuda #ayuda { display: block; }
+</style>
+</head>
+<body>
+  <img src="icons/icono-maskable-192.png" alt="">
+  <h1>ALVARO</h1>
+  <div id="msj">Abriendo…</div>
+  <button type="button" class="btn prim" id="instalar">Instalar Alvaro</button>
+  <a class="btn" id="abrir" href="#">Abrir Alvaro</a>
+  <div id="ayuda">Si no aparece el botón: menú ⋮ de Chrome → <b>Instalar app</b> (o <b>Agregar a la pantalla principal</b> → Instalar).</div>
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   ÚNICO DATO A COMPLETAR: el enlace de la aplicación web de Apps Script
+   (Implementar → Gestionar implementaciones → URL, la que termina en /exec)
+   ═══════════════════════════════════════════════════════════════════ */
+const APP_URL = 'https://script.google.com/macros/s/PEGAR_ACA_EL_ID/exec';
+
+(function () {
+  const msj = document.getElementById('msj');
+  const abrir = document.getElementById('abrir');
+  const manual = function (texto) { msj.textContent = texto; document.body.classList.add('manual'); };
+  // La primera vez, esperar (como mucho 2 s) a que el service worker quede instalado:
+  // así, después, el ícono abre aunque no haya conexión y muestra el aviso.
+  let swListo = Promise.resolve();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(function () { /* sin modo sin conexión */ });
+    if (!navigator.serviceWorker.controller) {
+      swListo = Promise.race([navigator.serviceWorker.ready, new Promise(function (r) { setTimeout(r, 2000); })]);
+    }
+  }
+
+  // Botón de instalación (Chrome lo habilita si la página se puede instalar).
+  let pedido = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); pedido = e; document.body.classList.add('puede-instalar'); document.body.classList.remove('ayuda'); });
+  document.getElementById('instalar').addEventListener('click', function () {
+    if (!pedido) return;
+    pedido.prompt();
+    pedido.userChoice.finally(function () { pedido = null; document.body.classList.remove('puede-instalar'); });
+  });
+  window.addEventListener('appinstalled', function () {
+    document.body.classList.remove('puede-instalar', 'ayuda');
+    msj.textContent = 'Listo: ya está instalada. Abrila desde el ícono Alvaro.';
+  });
+
+  if (/PEGAR_ACA/.test(APP_URL)) { manual('Falta poner el enlace de la app en index.html (APP_URL).'); abrir.removeAttribute('href'); return; }
+  abrir.href = APP_URL;
+
+  // Abierta desde el navegador (no desde el ícono instalado): no redirigir, para poder instalarla.
+  const instalada = window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches || window.navigator.standalone === true || /[?&]abrir\b/.test(location.search);
+  if (!instalada) {
+    manual('Instalala para tenerla como app con su ícono, o abrila desde acá.');
+    setTimeout(function () { if (!pedido) document.body.classList.add('ayuda'); }, 1500);
+    return;
+  }
+
+  const ir = function () {
+    if (!navigator.onLine) { manual('Sin conexión. Revisá el wifi o los datos y tocá el botón.'); return; }
+    // replace: la lanzadora no queda en el historial, así "Atrás" cierra la app en vez de volver a abrirla en bucle.
+    swListo.then(function () { location.replace(APP_URL); });
+  };
+  window.addEventListener('online', function () { if (document.body.classList.contains('manual')) ir(); });
+  // Si por algún motivo seguimos acá (redirección bloqueada o lenta), ofrecer el botón.
+  setTimeout(function () { if (!document.body.classList.contains('manual')) manual('Si no se abrió sola, tocá el botón.'); }, 4000);
+  ir();
+})();
+</script>
+</body>
+</html>
